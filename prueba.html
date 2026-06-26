@@ -19,12 +19,11 @@
         canvas { background: #0b0f19; border: 2px solid #1a2235; border-radius: 15px; box-shadow: 0 0 20px rgba(0,0,0,0.6); margin-top: 10px; }
         label { font-size: 13px; color: #8ea1bd; margin-bottom: 8px; display: block; }
         .status { font-size: 11px; color: #8ea1bd; margin-left: 10px; font-style: italic; }
-        #resultadosBusqueda { margin-top: 15px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
     </style>
 </head>
 <body>
 
-    <div style="text-align: center; margin-bottom: 20px;">
+    <div style="text-align: center; margin-top: 20px;">
         <a href="https://ko-fi.com/niskjakx" target="_blank">
             <img src="https://storage.ko-fi.com/cdn/kofi1.png" alt="Apóyame en Ko-fi" style="width: 150px;">
         </a>
@@ -55,11 +54,14 @@
         <input type="text" id="nombreJuego" placeholder="Nombre del juego">
         <select id="plataforma" style="margin: 15px 0;"><option>PS5</option><option>PS4</option><option>PS3</option><option>PS Vita</option></select>
         
-        <button onclick="buscarJuegos()">Buscar y Añadir</button>
-        <div id="resultadosBusqueda"></div>
+        <label>Portada:</label>
+        <label for="imagenJuego" class="file-input-btn">Elegir Portada</label>
+        <span id="labelJuego" class="status">Ningún archivo seleccionado</span>
+        <input type="file" id="imagenJuego" accept="image/*">
         
-        <p style="font-size: 12px; color: #8ea1bd; text-align: center; margin-top: 20px;">* Clic derecho sobre un juego en la imagen para borrarlo</p>
-        <button onclick="borrarTodo()" style="background: #8b0000;">Borrar todo</button>
+        <button onclick="añadirJuego()">Añadir Juego</button>
+        <button onclick="borrarTodo()" style="background: #8b0000; margin-top: 10px;">Borrar todo</button>
+        <p style="font-size: 12px; color: #8ea1bd; text-align: center; margin-top: 20px;">* Clic derecho sobre un juego para borrarlo</p>
     </div>
 
     <button onclick="descargarImagen()" style="max-width: 640px; margin-bottom: 30px;">Descargar Imagen Final</button>
@@ -68,10 +70,10 @@
     <script>
         const canvas = document.getElementById('lienzoMosaico');
         const ctx = canvas.getContext('2d');
-        const API_KEY = "a304d9924f23ad9cd899db4b16cb8b82";
         let juegos = [];
         let fotoPerfil = null;
 
+        // Cargar datos al abrir
         window.onload = () => {
             const data = localStorage.getItem('mosaicoData');
             if (data) {
@@ -89,7 +91,7 @@
         };
 
         function guardarDatos() {
-            localStorage.setItem('mosaicoData', JSON.stringify({
+            const datos = {
                 usuario: document.getElementById('usuario').value,
                 nivel: document.getElementById('nivel').value,
                 vP: document.getElementById('vP').value,
@@ -98,46 +100,15 @@
                 vB: document.getElementById('vB').value,
                 juegos: juegos,
                 fotoPerfil: fotoPerfil
-            }));
-        }
-
-        async function buscarJuegos() {
-            const query = document.getElementById('nombreJuego').value;
-            const contenedor = document.getElementById('resultadosBusqueda');
-            contenedor.innerHTML = "Buscando...";
-            try {
-                const res = await fetch(`https://www.steamgriddb.com/api/v2/search/autocomplete/${encodeURIComponent(query)}`, {
-                    headers: { 'Authorization': `Bearer ${API_KEY}` }
-                });
-                const data = await res.json();
-                if (!data.data.length) return contenedor.innerHTML = "No encontrado.";
-                const gameId = data.data[0].id;
-                const gridRes = await fetch(`https://www.steamgriddb.com/api/v2/grids/game/${gameId}`, {
-                    headers: { 'Authorization': `Bearer ${API_KEY}` }
-                });
-                const gridData = await gridRes.json();
-                contenedor.innerHTML = "";
-                gridData.data.slice(0, 6).forEach(grid => {
-                    const img = document.createElement('img');
-                    img.src = grid.thumb;
-                    img.style.width = "80px"; img.style.cursor = "pointer";
-                    img.onclick = () => cargarImagenDesdeURL(grid.url, query);
-                    contenedor.appendChild(img);
-                });
-            } catch (e) { contenedor.innerHTML = "Error de conexión."; }
-        }
-
-        async function cargarImagenDesdeURL(url, titulo) {
-            const res = await fetch(url);
-            const blob = await res.blob();
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                juegos.push({ titulo: titulo, plataforma: document.getElementById('plataforma').value, img: e.target.result });
-                guardarDatos();
-                dibujar();
-                document.getElementById('resultadosBusqueda').innerHTML = "¡Añadido!";
             };
-            reader.readAsDataURL(blob);
+            localStorage.setItem('mosaicoData', JSON.stringify(datos));
+        }
+
+        function borrarTodo() {
+            if(confirm("¿Seguro que quieres borrar todo?")) {
+                localStorage.removeItem('mosaicoData');
+                location.reload();
+            }
         }
 
         document.getElementById('fotoPerfil').onchange = (e) => {
@@ -147,22 +118,48 @@
             reader.readAsDataURL(e.target.files[0]);
         };
 
+        document.getElementById('imagenJuego').onchange = (e) => {
+            document.getElementById('labelJuego').innerText = e.target.files[0].name;
+        };
+
         canvas.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left, y = e.clientY - rect.top;
-            const cols = 4, pad = 20, cardW = 150, cardH = 260, headerH = 160;
-            const col = Math.floor((x - pad) / (cardW + pad)), row = Math.floor((y - headerH - pad) / (cardH + pad));
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const cols = 4;
+            const pad = 20, cardW = 150, cardH = 260, headerH = 160;
+            const col = Math.floor((x - pad) / (cardW + pad));
+            const row = Math.floor((y - headerH - pad) / (cardH + pad));
             if(col >= 0 && col < cols && row >= 0) {
                 const index = row * cols + col;
                 if(juegos[index]) { juegos.splice(index, 1); guardarDatos(); dibujar(); }
             }
         });
 
+        function añadirJuego() {
+            const nombre = document.getElementById('nombreJuego').value;
+            const plat = document.getElementById('plataforma').value;
+            const input = document.getElementById('imagenJuego');
+            if (!nombre || !input.files[0]) return alert("Completa nombre e imagen del juego");
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                juegos.push({ titulo: nombre, plataforma: plat, img: e.target.result });
+                document.getElementById('nombreJuego').value = '';
+                input.value = '';
+                document.getElementById('labelJuego').innerText = "Ningún archivo seleccionado";
+                guardarDatos();
+                dibujar();
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+
         async function dibujar() {
-            const cols = 4, cardW = 150, imgH = 200, textH = 75, pad = 20, headerH = 160;
+            const cols = 4;
+            const cardW = 150, imgH = 200, textH = 75, pad = 20, headerH = 160;
             canvas.width = pad + (cardW + pad) * cols;
             canvas.height = headerH + pad + (imgH + textH + pad) * Math.ceil(juegos.length / cols || 1);
+
             ctx.fillStyle = '#0b0f19'; ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = '#1a2235'; ctx.fillRect(0, 0, canvas.width, headerH);
             
@@ -180,8 +177,16 @@
             ctx.fillStyle = "white"; ctx.font = "bold 24px Arial"; ctx.textAlign = "left";
             ctx.fillText(document.getElementById('usuario').value || "USUARIO", 140, 70);
             ctx.font = "18px Arial"; ctx.fillText("Nivel: " + (document.getElementById('nivel').value || "0"), 140, 100);
-            ctx.fillStyle = "#8ea1bd"; ctx.font = "italic 12px Arial";
+
+            ctx.fillStyle = "#8ea1bd"; ctx.font = "italic 12px Arial"; ctx.textAlign = "left";
             ctx.fillText("Creado en: pokemonisk.github.io/Generador-de-Tarjetas-Platino", 140, 125);
+
+            // --- NUEVO: Estampa unificada para los trofeos ---
+            ctx.fillStyle = "#0b0f19"; // Color de fondo oscuro como el de la página
+            ctx.beginPath();
+            ctx.roundRect(310, 15, 345, 90, 15); // Dibuja el fondo agrupando los 4 trofeos
+            ctx.fill();
+            // -------------------------------------------------
 
             const stats = [{id:'vP', src:'trofeo_platino.png'}, {id:'vO', src:'oro.png'}, {id:'vS', src:'plata.png'}, {id:'vB', src:'bronce.png'}];
             ctx.textAlign = "center";
@@ -189,36 +194,51 @@
                 const icon = new Image(); icon.src = stats[i].src;
                 await new Promise(r => icon.onload = r);
                 ctx.drawImage(icon, 350 + (i * 90) - 17, 30, 35, 35);
+                ctx.fillStyle = "white"; // Aseguramos que el texto sea blanco
                 ctx.fillText(document.getElementById(stats[i].id).value || "0", 350 + (i * 90), 90);
             }
 
             const platImg = new Image(); platImg.src = 'trofeo_platino.png';
             await new Promise(r => platImg.onload = r);
             for (let i = 0; i < juegos.length; i++) {
-                const x = pad + (cardW + pad) * (i % cols), y = headerH + pad + (imgH + textH + pad) * Math.floor(i / cols);
+                const x = pad + (cardW + pad) * (i % cols);
+                const y = headerH + pad + (imgH + textH + pad) * Math.floor(i / cols);
                 const img = new Image(); img.src = juegos[i].img;
                 await new Promise(r => img.onload = r);
                 ctx.drawImage(img, x, y, cardW, imgH);
+                
                 ctx.fillStyle = "#ff0000"; ctx.fillRect(x + 5, y + 5, 35, 20);
                 ctx.fillStyle = "white"; ctx.font = "bold 12px Arial";
                 ctx.fillText("#" + (i + 1), x + 22, y + 20);
+                
                 ctx.fillStyle = '#111b30'; ctx.fillRect(x, y + imgH, cardW, textH);
                 ctx.drawImage(platImg, x + cardW/2 - 15, y + imgH + 2, 30, 30);
-                ctx.textAlign = "center";
+                ctx.fillStyle = "white"; ctx.textAlign = "center"; ctx.font = "bold 11px Arial";
+                
                 let titulo = juegos[i].titulo.toUpperCase();
-                if (titulo.length > 30) titulo = titulo.substring(0, 27) + "...";
-                ctx.fillText(titulo, x + cardW/2, y + imgH + 48);
+                if (titulo.length > 37) titulo = titulo.substring(0, 37) + "...";
+                let palabras = titulo.split(" ");
+                let linea1 = "", linea2 = "";
+                for(let p of palabras) {
+                    if (ctx.measureText(linea1 + " " + p).width < cardW - 10) linea1 += (linea1 === "" ? "" : " ") + p;
+                    else linea2 += (linea2 === "" ? "" : " ") + p;
+                }
+                ctx.fillText(linea1, x + cardW/2, y + imgH + 42);
+                ctx.fillText(linea2, x + cardW/2, y + imgH + 54);
                 ctx.fillStyle = "#8ea1bd"; ctx.font = "10px Arial";
                 ctx.fillText(juegos[i].plataforma, x + cardW/2, y + imgH + textH - 5);
+                
                 const grad = ctx.createLinearGradient(x, y, x + cardW, y + imgH + textH);
                 grad.addColorStop(0, '#005ce6'); grad.addColorStop(1, '#800080');
                 ctx.strokeStyle = grad; ctx.lineWidth = 3; ctx.strokeRect(x, y, cardW, imgH + textH);
             }
         }
 
-        function borrarTodo() { if(confirm("¿Seguro que quieres borrar todo?")) { localStorage.removeItem('mosaicoData'); location.reload(); } }
-        function descargarImagen() { 
-            const link = document.createElement('a'); link.download = 'Mis_Platinos.png'; link.href = canvas.toDataURL(); link.click(); 
+        function descargarImagen() {
+            const link = document.createElement('a');
+            link.download = 'Mis_Platinos.png';
+            link.href = canvas.toDataURL();
+            link.click();
         }
     </script>
 </body>
