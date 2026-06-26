@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Generador de Tarjetas Platino</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <style>
+        :root { --primary: #0070cc; --accent: #800080; --bg: #0b0f19; --panel: #1a2235; }
+        body { background-color: var(--bg); color: #e0e0e0; font-family: 'Segoe UI', Roboto, sans-serif; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .panel { background: rgba(26, 34, 53, 0.8); backdrop-filter: blur(10px); padding: 30px; border-radius: 20px; margin-bottom: 25px; width: 100%; max-width: 600px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+        h3 { margin: 0 0 20px 0; color: #fff; border-left: 4px solid var(--primary); padding-left: 10px; }
+        .field-wrapper { margin-bottom: 20px; }
+        input, select { padding: 14px; border-radius: 10px; border: 1px solid #2a3b5c; background: #0d121d; color: white; width: 100%; box-sizing: border-box; }
+        .file-input-btn { display: inline-block; padding: 12px 20px; cursor: pointer; background: #2a3b5c; border-radius: 8px; font-size: 14px; transition: background 0.3s; margin-top: 5px; }
+        .file-input-btn:hover { background: #3d527a; }
+        input[type="file"] { display: none; }
+        button { padding: 15px; border-radius: 10px; border: none; background: linear-gradient(45deg, var(--primary), var(--accent)); color: white; cursor: pointer; font-weight: bold; transition: transform 0.2s, filter 0.2s; width: 100%; margin-top: 10px; }
+        button:hover { transform: translateY(-2px); filter: brightness(1.2); }
+        canvas { background: #0b0f19; border: 2px solid #1a2235; border-radius: 15px; box-shadow: 0 0 20px rgba(0,0,0,0.6); margin-top: 10px; }
+        label { font-size: 13px; color: #8ea1bd; margin-bottom: 8px; display: block; }
+        .status { font-size: 11px; color: #8ea1bd; margin-left: 10px; font-style: italic; }
+        #resultadosBusqueda { margin-top: 15px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+    </style>
+</head>
+<body>
+
+    <div style="text-align: center; margin-bottom: 20px;">
+        <a href="https://ko-fi.com/niskjakx" target="_blank">
+            <img src="https://storage.ko-fi.com/cdn/kofi1.png" alt="Apóyame en Ko-fi" style="width: 150px;">
+        </a>
+    </div>
+
+    <div class="panel">
+        <h3>Perfil y Estadísticas</h3>
+        <div class="field-wrapper"><input type="text" id="usuario" placeholder="Nombre de Usuario" oninput="guardarDatos()"></div>
+        <div class="field-wrapper"><input type="number" id="nivel" placeholder="Nivel" oninput="guardarDatos()"></div>
+        
+        <div class="field-wrapper">
+            <label>Foto Perfil:</label>
+            <label for="fotoPerfil" class="file-input-btn">Elegir Archivo</label>
+            <span id="labelFoto" class="status">Ningún archivo seleccionado</span>
+            <input type="file" id="fotoPerfil" accept="image/*">
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+            <input type="number" id="vP" placeholder="Platinos" oninput="guardarDatos()">
+            <input type="number" id="vO" placeholder="Oros" oninput="guardarDatos()">
+            <input type="number" id="vS" placeholder="Platas" oninput="guardarDatos()">
+            <input type="number" id="vB" placeholder="Bronces" oninput="guardarDatos()">
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid #2a3b5c; margin: 30px 0;">
+
+        <h3>Añadir Juego</h3>
+        <input type="text" id="nombreJuego" placeholder="Nombre del juego">
+        <select id="plataforma" style="margin: 15px 0;"><option>PS5</option><option>PS4</option><option>PS3</option><option>PS Vita</option></select>
+        
+        <button onclick="buscarJuegos()">Buscar y Añadir</button>
+        <div id="resultadosBusqueda"></div>
+        
+        <p style="font-size: 12px; color: #8ea1bd; text-align: center; margin-top: 20px;">* Clic derecho sobre un juego en la imagen para borrarlo</p>
+        <button onclick="borrarTodo()" style="background: #8b0000;">Borrar todo</button>
+    </div>
+
+    <button onclick="descargarImagen()" style="max-width: 640px; margin-bottom: 30px;">Descargar Imagen Final</button>
+    <canvas id="lienzoMosaico"></canvas>
+
+    <script>
+        const canvas = document.getElementById('lienzoMosaico');
+        const ctx = canvas.getContext('2d');
+        const API_KEY = "a304d9924f23ad9cd899db4b16cb8b82";
+        let juegos = [];
+        let fotoPerfil = null;
+
+        window.onload = () => {
+            const data = localStorage.getItem('mosaicoData');
+            if (data) {
+                const d = JSON.parse(data);
+                document.getElementById('usuario').value = d.usuario || "";
+                document.getElementById('nivel').value = d.nivel || "";
+                document.getElementById('vP').value = d.vP || "";
+                document.getElementById('vO').value = d.vO || "";
+                document.getElementById('vS').value = d.vS || "";
+                document.getElementById('vB').value = d.vB || "";
+                juegos = d.juegos || [];
+                fotoPerfil = d.fotoPerfil || null;
+                dibujar();
+            }
+        };
+
+        function guardarDatos() {
+            localStorage.setItem('mosaicoData', JSON.stringify({
+                usuario: document.getElementById('usuario').value,
+                nivel: document.getElementById('nivel').value,
+                vP: document.getElementById('vP').value,
+                vO: document.getElementById('vO').value,
+                vS: document.getElementById('vS').value,
+                vB: document.getElementById('vB').value,
+                juegos: juegos,
+                fotoPerfil: fotoPerfil
+            }));
+        }
+
+        async function buscarJuegos() {
+            const query = document.getElementById('nombreJuego').value;
+            const contenedor = document.getElementById('resultadosBusqueda');
+            contenedor.innerHTML = "Buscando...";
+
+            try {
+                const res = await fetch(`https://www.steamgriddb.com/api/v2/search/autocomplete/${encodeURIComponent(query)}`, {
+                    headers: { 'Authorization': `Bearer ${API_KEY}` }
+                });
+                const data = await res.json();
+                if (!data.data.length) return contenedor.innerHTML = "No encontrado.";
+
+                const gameId = data.data[0].id;
+                const gridRes = await fetch(`https://www.steamgriddb.com/api/v2/grids/game/${gameId}`, {
+                    headers: { 'Authorization': `Bearer ${API_KEY}` }
+                });
+                const gridData = await gridRes.json();
+
+                contenedor.innerHTML = "";
+                gridData.data.slice(0, 6).forEach(grid => {
+                    const img = document.createElement('img');
+                    img.src = grid.thumb;
+                    img.style.width = "80px"; img.style.cursor = "pointer";
+                    img.onclick = () => cargarImagenDesdeURL(grid.url, query);
+                    contenedor.appendChild(img);
+                });
+            } catch (e) { contenedor.innerHTML = "Error de conexión."; }
+        }
+
+        async function cargarImagenDesdeURL(url, titulo) {
+            const res = await fetch(url);
+            const blob = await res.blob();
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                juegos.push({ titulo: titulo, plataforma: document.getElementById('plataforma').value, img: e.target.result });
+                guardarDatos();
+                dibujar();
+                document.getElementById('resultadosBusqueda').innerHTML = "¡Añadido!";
+            };
+            reader.readAsDataURL(blob);
+        }
+
+        // --- MANTEN TU LÓGICA DE DIBUJO Y EVENTOS AQUÍ ---
+        // (La función dibujar, borrar con click derecho, etc. se mantienen igual)
+        document.getElementById('fotoPerfil').onchange = (e) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => { fotoPerfil = ev.target.result; guardarDatos(); dibujar(); };
+            reader.readAsDataURL(e.target.files[0]);
+        };
+
+        canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const cols = 4;
+            const pad = 20, cardW = 150, cardH = 260, headerH = 160;
+            const col = Math.floor((x - pad) / (cardW + pad));
+            const row = Math.floor((y - headerH - pad) / (cardH + pad));
+            if(col >= 0 && col < cols && row >= 0) {
+                const index = row * cols + col;
+                if(juegos[index]) { juegos.splice(index, 1); guardarDatos(); dibujar(); }
+            }
+        });
+
+        // (Incluye aquí tu función 'dibujar' completa tal cual la tenías)
+        // ... (Tu función dibujar aquí) ...
+        
+        function borrarTodo() { if(confirm("¿Borrar todo?")) { localStorage.removeItem('mosaicoData'); location.reload(); } }
+        function descargarImagen() { const link = document.createElement('a'); link.download = 'Mis_Platinos.png'; link.href = canvas.toDataURL(); link.click(); }
+    </script>
+</body>
+</html>
