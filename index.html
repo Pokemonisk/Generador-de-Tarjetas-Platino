@@ -22,18 +22,17 @@
     </style>
 </head>
 <body>
-<!-----Boton de Ko-Fi---->
+
     <div style="text-align: center; margin-top: 20px;">
-    <a href="https://ko-fi.com/niskjakx" target="_blank">
-        <img src="https://storage.ko-fi.com/cdn/kofi1.png" alt="Apóyame en Ko-fi" style="width: 150px;">
-    </a>
+        <a href="https://ko-fi.com/niskjakx" target="_blank">
+            <img src="https://storage.ko-fi.com/cdn/kofi1.png" alt="Apóyame en Ko-fi" style="width: 150px;">
+        </a>
     </div>
-<!-----Boton de Ko-Fi---->
 
     <div class="panel">
         <h3>Perfil y Estadísticas</h3>
-        <div class="field-wrapper"><input type="text" id="usuario" placeholder="Nombre de Usuario"></div>
-        <div class="field-wrapper"><input type="number" id="nivel" placeholder="Nivel"></div>
+        <div class="field-wrapper"><input type="text" id="usuario" placeholder="Nombre de Usuario" oninput="guardarDatos()"></div>
+        <div class="field-wrapper"><input type="number" id="nivel" placeholder="Nivel" oninput="guardarDatos()"></div>
         
         <div class="field-wrapper">
             <label>Foto Perfil:</label>
@@ -43,10 +42,10 @@
         </div>
 
         <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-            <input type="number" id="vP" placeholder="Platinos">
-            <input type="number" id="vO" placeholder="Oros">
-            <input type="number" id="vS" placeholder="Platas">
-            <input type="number" id="vB" placeholder="Bronces">
+            <input type="number" id="vP" placeholder="Platinos" oninput="guardarDatos()">
+            <input type="number" id="vO" placeholder="Oros" oninput="guardarDatos()">
+            <input type="number" id="vS" placeholder="Platas" oninput="guardarDatos()">
+            <input type="number" id="vB" placeholder="Bronces" oninput="guardarDatos()">
         </div>
 
         <hr style="border: 0; border-top: 1px solid #2a3b5c; margin: 30px 0;">
@@ -61,6 +60,7 @@
         <input type="file" id="imagenJuego" accept="image/*">
         
         <button onclick="añadirJuego()">Añadir Juego</button>
+        <button onclick="borrarTodo()" style="background: #8b0000; margin-top: 10px;">Borrar todo</button>
         <p style="font-size: 12px; color: #8ea1bd; text-align: center; margin-top: 20px;">* Clic derecho sobre un juego para borrarlo</p>
     </div>
 
@@ -73,12 +73,51 @@
         let juegos = [];
         let fotoPerfil = null;
 
+        // Cargar datos al abrir
+        window.onload = () => {
+            const data = localStorage.getItem('mosaicoData');
+            if (data) {
+                const d = JSON.parse(data);
+                document.getElementById('usuario').value = d.usuario || "";
+                document.getElementById('nivel').value = d.nivel || "";
+                document.getElementById('vP').value = d.vP || "";
+                document.getElementById('vO').value = d.vO || "";
+                document.getElementById('vS').value = d.vS || "";
+                document.getElementById('vB').value = d.vB || "";
+                juegos = d.juegos || [];
+                fotoPerfil = d.fotoPerfil || null;
+                dibujar();
+            }
+        };
+
+        function guardarDatos() {
+            const datos = {
+                usuario: document.getElementById('usuario').value,
+                nivel: document.getElementById('nivel').value,
+                vP: document.getElementById('vP').value,
+                vO: document.getElementById('vO').value,
+                vS: document.getElementById('vS').value,
+                vB: document.getElementById('vB').value,
+                juegos: juegos,
+                fotoPerfil: fotoPerfil
+            };
+            localStorage.setItem('mosaicoData', JSON.stringify(datos));
+        }
+
+        function borrarTodo() {
+            if(confirm("¿Seguro que quieres borrar todo?")) {
+                localStorage.removeItem('mosaicoData');
+                location.reload();
+            }
+        }
+
         document.getElementById('fotoPerfil').onchange = (e) => {
             document.getElementById('labelFoto').innerText = e.target.files[0].name;
             const reader = new FileReader();
-            reader.onload = (ev) => { fotoPerfil = ev.target.result; dibujar(); };
+            reader.onload = (ev) => { fotoPerfil = ev.target.result; guardarDatos(); dibujar(); };
             reader.readAsDataURL(e.target.files[0]);
         };
+
         document.getElementById('imagenJuego').onchange = (e) => {
             document.getElementById('labelJuego').innerText = e.target.files[0].name;
         };
@@ -94,7 +133,7 @@
             const row = Math.floor((y - headerH - pad) / (cardH + pad));
             if(col >= 0 && col < cols && row >= 0) {
                 const index = row * cols + col;
-                if(juegos[index]) { juegos.splice(index, 1); dibujar(); }
+                if(juegos[index]) { juegos.splice(index, 1); guardarDatos(); dibujar(); }
             }
         });
 
@@ -109,6 +148,7 @@
                 document.getElementById('nombreJuego').value = '';
                 input.value = '';
                 document.getElementById('labelJuego').innerText = "Ningún archivo seleccionado";
+                guardarDatos();
                 dibujar();
             };
             reader.readAsDataURL(input.files[0]);
@@ -138,7 +178,6 @@
             ctx.fillText(document.getElementById('usuario').value || "USUARIO", 140, 70);
             ctx.font = "18px Arial"; ctx.fillText("Nivel: " + (document.getElementById('nivel').value || "0"), 140, 100);
 
-            // Marca de agua / URL
             ctx.fillStyle = "#8ea1bd"; ctx.font = "italic 12px Arial"; ctx.textAlign = "left";
             ctx.fillText("Creado en: pokemonisk.github.io/Generador-de-Tarjetas-Platino", 140, 125);
 
@@ -166,25 +205,18 @@
                 
                 ctx.fillStyle = '#111b30'; ctx.fillRect(x, y + imgH, cardW, textH);
                 ctx.drawImage(platImg, x + cardW/2 - 15, y + imgH + 2, 30, 30);
-                
                 ctx.fillStyle = "white"; ctx.textAlign = "center"; ctx.font = "bold 11px Arial";
                 
                 let titulo = juegos[i].titulo.toUpperCase();
                 if (titulo.length > 37) titulo = titulo.substring(0, 37) + "...";
-                
                 let palabras = titulo.split(" ");
                 let linea1 = "", linea2 = "";
                 for(let p of palabras) {
-                    if (ctx.measureText(linea1 + " " + p).width < cardW - 10) {
-                        linea1 += (linea1 === "" ? "" : " ") + p;
-                    } else {
-                        linea2 += (linea2 === "" ? "" : " ") + p;
-                    }
+                    if (ctx.measureText(linea1 + " " + p).width < cardW - 10) linea1 += (linea1 === "" ? "" : " ") + p;
+                    else linea2 += (linea2 === "" ? "" : " ") + p;
                 }
-                
                 ctx.fillText(linea1, x + cardW/2, y + imgH + 42);
                 ctx.fillText(linea2, x + cardW/2, y + imgH + 54);
-                
                 ctx.fillStyle = "#8ea1bd"; ctx.font = "10px Arial";
                 ctx.fillText(juegos[i].plataforma, x + cardW/2, y + imgH + textH - 5);
                 
@@ -195,15 +227,6 @@
         }
 
         function descargarImagen() {
-            if (!document.getElementById('usuario').value) return alert("El nombre de usuario es obligatorio");
-            if (!document.getElementById('nivel').value) return alert("El nivel es obligatorio");
-            if (!fotoPerfil) return alert("Selecciona una foto de perfil");
-            if (!document.getElementById('vP').value || !document.getElementById('vO').value || 
-                !document.getElementById('vS').value || !document.getElementById('vB').value) {
-                return alert("Completa todas las cantidades de trofeos");
-            }
-            if (juegos.length === 0) return alert("Debes añadir al menos un juego");
-
             const link = document.createElement('a');
             link.download = 'Mis_Platinos.png';
             link.href = canvas.toDataURL();
